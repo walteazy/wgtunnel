@@ -1,5 +1,6 @@
 package com.zaneschepke.wireguardautotunnel.viewmodel
 
+import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.net.Uri
 import android.os.Build
 import androidx.lifecycle.ViewModel
@@ -8,6 +9,7 @@ import com.wireguard.android.backend.WgQuickBackend
 import com.wireguard.android.util.RootShell
 import com.zaneschepke.logcatter.LogReader
 import com.zaneschepke.logcatter.model.LogMessage
+import com.zaneschepke.networkmonitor.AndroidNetworkMonitor
 import com.zaneschepke.networkmonitor.NetworkMonitor
 import com.zaneschepke.networkmonitor.NetworkStatus
 import com.zaneschepke.wireguardautotunnel.R
@@ -18,11 +20,11 @@ import com.zaneschepke.wireguardautotunnel.core.tunnel.TunnelManager
 import com.zaneschepke.wireguardautotunnel.di.AppShell
 import com.zaneschepke.wireguardautotunnel.di.IoDispatcher
 import com.zaneschepke.wireguardautotunnel.di.MainDispatcher
-import com.zaneschepke.wireguardautotunnel.domain.entity.AppSettings
-import com.zaneschepke.wireguardautotunnel.domain.entity.AppState
-import com.zaneschepke.wireguardautotunnel.domain.entity.TunnelConf
 import com.zaneschepke.wireguardautotunnel.domain.enums.BackendState
 import com.zaneschepke.wireguardautotunnel.domain.enums.ConfigType
+import com.zaneschepke.wireguardautotunnel.domain.model.AppSettings
+import com.zaneschepke.wireguardautotunnel.domain.model.AppState
+import com.zaneschepke.wireguardautotunnel.domain.model.TunnelConf
 import com.zaneschepke.wireguardautotunnel.domain.repository.AppDataRepository
 import com.zaneschepke.wireguardautotunnel.domain.state.TunnelState
 import com.zaneschepke.wireguardautotunnel.ui.state.AppUiState
@@ -32,6 +34,7 @@ import com.zaneschepke.wireguardautotunnel.util.*
 import com.zaneschepke.wireguardautotunnel.util.extensions.addAllUnique
 import com.zaneschepke.wireguardautotunnel.util.extensions.withFirstState
 import com.zaneschepke.wireguardautotunnel.viewmodel.event.AppEvent
+import com.zaneschepke.wireguardautotunnel.viewmodel.event.UiEvent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.IOException
 import java.net.URL
@@ -45,6 +48,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.amnezia.awg.config.BadConfigException
 import org.amnezia.awg.config.Config
+import rikka.shizuku.Shizuku
 import timber.log.Timber
 import xyz.teamgravity.pin_lock_compose.PinManager
 
@@ -75,6 +79,9 @@ constructor(
 
     private val _appViewState = MutableStateFlow(AppViewState())
     val appViewState = _appViewState.asStateFlow()
+
+    private val _uiEvent = MutableSharedFlow<UiEvent>()
+    val uiEvent: SharedFlow<UiEvent> = _uiEvent.asSharedFlow()
 
     private val _logs = MutableStateFlow<List<LogMessage>>(emptyList())
     val logs: StateFlow<List<LogMessage>> = _logs.asStateFlow()
@@ -122,6 +129,9 @@ constructor(
             }
         }
     }
+
+    fun handleUiEvent(event: UiEvent) =
+        viewModelScope.launch(mainDispatcher) { _uiEvent.emit(event) }
 
     fun handleEvent(event: AppEvent) =
         viewModelScope.launch(ioDispatcher) {
@@ -177,7 +187,6 @@ constructor(
                         handleDeleteTrustedSSID(event.ssid, state.appSettings)
                     AppEvent.ToggleAutoTunnelWildcards ->
                         handleToggleAutoTunnelWildcards(state.appSettings)
-                    AppEvent.ToggleRootShellWifi -> handleToggleRootShellWifi(state.appSettings)
                     is AppEvent.SaveTrustedSSID ->
                         handleSaveTrustedSSID(event.ssid, state.appSettings)
                     AppEvent.ToggleAutoTunnelOnEthernet ->
@@ -210,9 +219,50 @@ constructor(
                     AppEvent.ClearSelectedTunnels -> clearSelectedTunnels()
                     is AppEvent.SetShowModal ->
                         _appViewState.update { it.copy(showModal = event.modalType) }
+
+                    is AppEvent.SetDetectionMethod ->
+                        handleSetDetectionMethod(event.detectionMethod, state.appSettings)
+                    is AppEvent.SaveAllConfigs -> saveAllTunnels(event.tunnels)
                 }
             }
         }
+
+    private suspend fun saveAllTunnels(tunnels: List<TunnelConf>) {
+        appDataRepository.tunnels.saveAll(tunnels)
+    }
+
+    private suspend fun handleSetDetectionMethod(
+        detectionMethod: AndroidNetworkMonitor.WifiDetectionMethod,
+        appSettings: AppSettings,
+    ) {
+        if (detectionMethod == appSettings.wifiDetectionMethod) return
+        when (detectionMethod) {
+            AndroidNetworkMonitor.WifiDetectionMethod.ROOT -> if (!requestRoot()) return
+            AndroidNetworkMonitor.WifiDetectionMethod.SHIZUKU -> {
+                Shizuku.addRequestPermissionResultListener(
+                    Shizuku.OnRequestPermissionResultListener { requestCode: Int, grantResult: Int
+                        ->
+                        if (grantResult != PERMISSION_GRANTED)
+                            return@OnRequestPermissionResultListener
+                        viewModelScope.launch {
+                            saveSettings(appSettings.copy(wifiDetectionMethod = detectionMethod))
+                        }
+                    }
+                )
+                try {
+                    if (Shizuku.checkSelfPermission() != PERMISSION_GRANTED)
+                        return Shizuku.requestPermission(123)
+                } catch (e: Exception) {
+                    Timber.e(e)
+                    return handleShowMessage(
+                        StringValue.StringResource(R.string.shizuku_not_detected)
+                    )
+                }
+            }
+            else -> Unit
+        }
+        saveSettings(appSettings.copy(wifiDetectionMethod = detectionMethod))
+    }
 
     private fun handleToggleSelectAllTunnels(tunnels: List<TunnelConf>) =
         _appViewState.update { it ->
@@ -264,6 +314,7 @@ constructor(
             }
         }
 
+    // TODO
     private fun handleTunnelErrors() =
         viewModelScope.launch { tunnelManager.errorEvents.collect { errorEvent -> } }
 
@@ -400,7 +451,6 @@ constructor(
 
     private suspend fun handleClipboardImport(config: String, tunnels: List<TunnelConf>) {
         runCatching {
-                Timber.d("Config: $config")
                 val amConfig = TunnelConf.configFromAmQuick(config)
                 val tunnelConf = TunnelConf.tunnelConfigFromAmConfig(amConfig)
                 saveTunnel(
@@ -630,14 +680,6 @@ constructor(
                 trustedNetworkSSIDs = (appSettings.trustedNetworkSSIDs - ssid).toMutableList()
             )
         )
-
-    private suspend fun handleToggleRootShellWifi(appSettings: AppSettings) {
-        if (requestRoot()) {
-            saveSettings(
-                appSettings.copy(isWifiNameByShellEnabled = !appSettings.isWifiNameByShellEnabled)
-            )
-        }
-    }
 
     private suspend fun handleToggleTunnelOnEthernet(appSettings: AppSettings) =
         saveSettings(

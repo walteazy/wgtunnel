@@ -3,10 +3,10 @@ package com.zaneschepke.wireguardautotunnel.domain.state
 import com.zaneschepke.wireguardautotunnel.core.tunnel.allDown
 import com.zaneschepke.wireguardautotunnel.core.tunnel.hasActive
 import com.zaneschepke.wireguardautotunnel.core.tunnel.isUp
-import com.zaneschepke.wireguardautotunnel.domain.entity.AppSettings
-import com.zaneschepke.wireguardautotunnel.domain.entity.TunnelConf
 import com.zaneschepke.wireguardautotunnel.domain.events.AutoTunnelEvent
 import com.zaneschepke.wireguardautotunnel.domain.events.KillSwitchEvent
+import com.zaneschepke.wireguardautotunnel.domain.model.AppSettings
+import com.zaneschepke.wireguardautotunnel.domain.model.TunnelConf
 import com.zaneschepke.wireguardautotunnel.util.extensions.isMatchingToWildcardList
 
 data class AutoTunnelState(
@@ -16,6 +16,7 @@ data class AutoTunnelState(
     val tunnels: List<TunnelConf> = emptyList(),
 ) {
 
+    // also need to check for Wi-Fi state as there is some overlap when they are both connected
     private fun isMobileDataActive(): Boolean {
         return !networkState.isEthernetConnected &&
             !networkState.isWifiConnected &&
@@ -50,6 +51,7 @@ data class AutoTunnelState(
         return getTunnelWithMatchingTunnelNetwork() ?: tunnels.firstOrNull { it.isPrimaryTunnel }
     }
 
+    // ignore cellular state as there is overlap where it may still be active, but not prioritized
     private fun isWifiActive(): Boolean {
         return !networkState.isEthernetConnected && networkState.isWifiConnected
     }

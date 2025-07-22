@@ -1,7 +1,9 @@
 package com.zaneschepke.wireguardautotunnel.ui.screens.main.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.ScrollableDefaults
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,7 +18,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.zaneschepke.wireguardautotunnel.core.tunnel.getValueById
-import com.zaneschepke.wireguardautotunnel.domain.entity.TunnelConf
+import com.zaneschepke.wireguardautotunnel.domain.model.TunnelConf
 import com.zaneschepke.wireguardautotunnel.domain.state.TunnelState
 import com.zaneschepke.wireguardautotunnel.ui.Route
 import com.zaneschepke.wireguardautotunnel.ui.navigation.LocalIsAndroidTV
@@ -25,8 +27,6 @@ import com.zaneschepke.wireguardautotunnel.ui.state.AppUiState
 import com.zaneschepke.wireguardautotunnel.util.extensions.openWebUrl
 import com.zaneschepke.wireguardautotunnel.viewmodel.AppViewModel
 import com.zaneschepke.wireguardautotunnel.viewmodel.event.AppEvent
-import java.text.Collator
-import java.util.*
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -40,17 +40,10 @@ fun TunnelList(
     val isTv = LocalIsAndroidTV.current
     val context = LocalContext.current
     val navController = LocalNavController.current
-    val collator = Collator.getInstance(Locale.getDefault())
-    val sortedTunnels =
-        remember(appUiState.tunnels) {
-            appUiState.tunnels.sortedWith(
-                compareBy(
-                    // primary tunnel first
-                    { !it.isPrimaryTunnel },
-                    { collator.compare(it.tunName, "") },
-                )
-            )
-        }
+
+    val lazyListState = rememberLazyListState()
+
+    val sortedTunnels = remember(appUiState.tunnels) { appUiState.tunnels.sortedBy { it.position } }
 
     LazyColumn(
         horizontalAlignment = Alignment.Start,
@@ -59,7 +52,7 @@ fun TunnelList(
             modifier
                 .pointerInput(Unit) { if (appUiState.tunnels.isEmpty()) return@pointerInput }
                 .overscroll(rememberOverscrollEffect()),
-        state = rememberLazyListState(0, appUiState.tunnels.count()),
+        state = lazyListState,
         userScrollEnabled = true,
         reverseLayout = false,
         flingBehavior = ScrollableDefaults.flingBehavior(),
@@ -75,26 +68,34 @@ fun TunnelList(
             val selected = remember(selectedTunnels) { selectedTunnels.any { it.id == tunnel.id } }
             TunnelRowItem(
                 state = tunnelState,
-                expanded = appUiState.appState.expandedTunnelIds.contains(tunnel.id),
                 isSelected = selected,
                 tunnel = tunnel,
                 tunnelState = tunnelState,
-                onClick = {
-                    if (selectedTunnels.isNotEmpty() && !isTv) {
-                        viewModel.handleEvent(AppEvent.ToggleSelectedTunnel(tunnel))
-                    } else {
-                        navController.navigate(Route.TunnelOptions(tunnel.id))
-                        viewModel.handleEvent(AppEvent.ClearSelectedTunnels)
-                    }
-                },
-                onDoubleClick = {
-                    viewModel.handleEvent(AppEvent.ToggleTunnelStatsExpanded(tunnel.id))
+                onTvClick = {
+                    navController.navigate(Route.TunnelOptions(tunnel.id))
+                    viewModel.handleEvent(AppEvent.ClearSelectedTunnels)
                 },
                 onToggleSelectedTunnel = {
                     viewModel.handleEvent(AppEvent.ToggleSelectedTunnel(it))
                 },
                 onSwitchClick = { checked -> onToggleTunnel(tunnel, checked) },
                 isTv = isTv,
+                modifier =
+                    Modifier.combinedClickable(
+                        onClick = {
+                            if (selectedTunnels.isNotEmpty() && !isTv) {
+                                viewModel.handleEvent(AppEvent.ToggleSelectedTunnel(tunnel))
+                            } else {
+                                navController.navigate(Route.TunnelOptions(tunnel.id))
+                                viewModel.handleEvent(AppEvent.ClearSelectedTunnels)
+                            }
+                        },
+                        onLongClick = {
+                            if (!isTv) viewModel.handleEvent(AppEvent.ToggleSelectedTunnel(tunnel))
+                        },
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ),
             )
         }
     }

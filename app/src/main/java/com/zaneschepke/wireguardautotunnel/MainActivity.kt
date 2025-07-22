@@ -49,10 +49,12 @@ import com.zaneschepke.wireguardautotunnel.ui.navigation.components.DynamicTopAp
 import com.zaneschepke.wireguardautotunnel.ui.navigation.components.currentNavBackStackEntryAsNavBarState
 import com.zaneschepke.wireguardautotunnel.ui.screens.autotunnel.AutoTunnelScreen
 import com.zaneschepke.wireguardautotunnel.ui.screens.autotunnel.advanced.AutoTunnelAdvancedScreen
+import com.zaneschepke.wireguardautotunnel.ui.screens.autotunnel.detection.WifiDetectionMethodScreen
 import com.zaneschepke.wireguardautotunnel.ui.screens.autotunnel.disclosure.LocationDisclosureScreen
 import com.zaneschepke.wireguardautotunnel.ui.screens.main.MainScreen
 import com.zaneschepke.wireguardautotunnel.ui.screens.main.autotunnel.TunnelAutoTunnelScreen
 import com.zaneschepke.wireguardautotunnel.ui.screens.main.config.ConfigScreen
+import com.zaneschepke.wireguardautotunnel.ui.screens.main.sort.SortScreen
 import com.zaneschepke.wireguardautotunnel.ui.screens.main.splittunnel.SplitTunnelScreen
 import com.zaneschepke.wireguardautotunnel.ui.screens.main.tunneloptions.TunnelOptionsScreen
 import com.zaneschepke.wireguardautotunnel.ui.screens.pin.PinLockScreen
@@ -85,6 +87,8 @@ class MainActivity : AppCompatActivity() {
     @Inject lateinit var networkMonitor: NetworkMonitor
 
     private var lastLocationPermissionState: Boolean? = null
+
+    val REQUEST_CODE = 123
 
     @SuppressLint("BatteryLife")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -284,6 +288,9 @@ class MainActivity : AppCompatActivity() {
                                     composable<Route.AutoTunnelAdvanced> {
                                         AutoTunnelAdvancedScreen(appUiState, viewModel)
                                     }
+                                    composable<Route.WifiDetectionMethod> {
+                                        WifiDetectionMethodScreen(appUiState, viewModel)
+                                    }
                                     composable<Route.Logs> { LogsScreen(appViewState, viewModel) }
                                     composable<Route.Config> { backStack ->
                                         val args = backStack.toRoute<Route.Config>()
@@ -316,6 +323,7 @@ class MainActivity : AppCompatActivity() {
                                                 )
                                             }
                                     }
+                                    composable<Route.Sort> { SortScreen(appUiState, viewModel) }
                                 }
                             }
                         }

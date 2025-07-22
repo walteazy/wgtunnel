@@ -123,7 +123,7 @@ android {
 
     licensee {
         Constants.allowedLicenses.forEach { allow(it) }
-        allowUrl(Constants.XZING_LICENSE_URL)
+        Constants.allowedLicenseUrls.forEach { allowUrl(it) }
     }
 
     applicationVariants.all {
@@ -219,6 +219,12 @@ dependencies {
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.slf4j.android)
+
+    // shizuku
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
+
+    implementation(libs.reorderable)
 }
 
 tasks.register<Copy>("copyLicenseeJsonToAssets") {
@@ -231,3 +237,10 @@ tasks.register<Copy>("copyLicenseeJsonToAssets") {
 }
 
 tasks.named("preBuild") { dependsOn("copyLicenseeJsonToAssets") }
+
+// https://gist.github.com/obfusk/61046e09cee352ae6dd109911534b12e#fix-proposed-by-linsui-disable-baseline-profiles
+tasks.whenTaskAdded {
+    if (name.contains("ArtProfile")) {
+        enabled = false
+    }
+}

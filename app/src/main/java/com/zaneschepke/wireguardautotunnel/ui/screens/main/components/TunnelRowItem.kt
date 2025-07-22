@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Circle
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SettingsEthernet
 import androidx.compose.material.icons.rounded.Smartphone
@@ -22,7 +21,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.zaneschepke.wireguardautotunnel.R
-import com.zaneschepke.wireguardautotunnel.domain.entity.TunnelConf
+import com.zaneschepke.wireguardautotunnel.domain.enums.TunnelStatus
+import com.zaneschepke.wireguardautotunnel.domain.model.TunnelConf
 import com.zaneschepke.wireguardautotunnel.domain.state.TunnelState
 import com.zaneschepke.wireguardautotunnel.ui.common.ExpandingRowListItem
 import com.zaneschepke.wireguardautotunnel.ui.common.button.ScaledSwitch
@@ -32,14 +32,13 @@ import com.zaneschepke.wireguardautotunnel.util.extensions.asColor
 fun TunnelRowItem(
     state: TunnelState,
     isSelected: Boolean,
-    expanded: Boolean,
     tunnel: TunnelConf,
     tunnelState: TunnelState,
-    onClick: () -> Unit,
-    onDoubleClick: () -> Unit,
+    onTvClick: () -> Unit,
     onToggleSelectedTunnel: (TunnelConf) -> Unit,
     onSwitchClick: (Boolean) -> Unit,
     isTv: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val leadingIconColor =
         remember(state) {
@@ -78,13 +77,10 @@ fun TunnelRowItem(
             }
         },
         text = tunnel.tunName,
-        onHold = { if (!isTv) onToggleSelectedTunnel(tunnel) },
-        onClick = { if (!isTv) onClick() },
-        onDoubleClick = { if (!isTv) onDoubleClick() },
         expanded = {
-            if (expanded) {
+            if (tunnelState.status != TunnelStatus.Down) {
                 TunnelStatisticsRow(tunnelState.statistics, tunnel)
-            } else null
+            }
         },
         trailing = {
             Row(
@@ -92,13 +88,7 @@ fun TunnelRowItem(
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
                 if (isTv) {
-                    IconButton(onClick = onDoubleClick) {
-                        Icon(
-                            Icons.Rounded.KeyboardArrowDown,
-                            contentDescription = stringResource(R.string.info),
-                        )
-                    }
-                    IconButton(onClick = onClick) {
+                    IconButton(onClick = onTvClick) {
                         Icon(
                             Icons.Rounded.Settings,
                             contentDescription = stringResource(R.string.settings),
@@ -109,5 +99,6 @@ fun TunnelRowItem(
             }
         },
         isSelected = isSelected,
+        modifier = modifier,
     )
 }

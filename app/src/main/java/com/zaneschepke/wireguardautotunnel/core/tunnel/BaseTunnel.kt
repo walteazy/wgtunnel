@@ -3,9 +3,9 @@ package com.zaneschepke.wireguardautotunnel.core.tunnel
 import com.wireguard.android.backend.Tunnel
 import com.zaneschepke.wireguardautotunnel.core.service.ServiceManager
 import com.zaneschepke.wireguardautotunnel.di.ApplicationScope
-import com.zaneschepke.wireguardautotunnel.domain.entity.TunnelConf
 import com.zaneschepke.wireguardautotunnel.domain.enums.BackendError
 import com.zaneschepke.wireguardautotunnel.domain.enums.TunnelStatus
+import com.zaneschepke.wireguardautotunnel.domain.model.TunnelConf
 import com.zaneschepke.wireguardautotunnel.domain.repository.AppDataRepository
 import com.zaneschepke.wireguardautotunnel.domain.state.TunnelState
 import com.zaneschepke.wireguardautotunnel.domain.state.TunnelStatistics
@@ -114,16 +114,16 @@ abstract class BaseTunnel(
         if (this@BaseTunnel is UserspaceTunnel) stopActiveTunnels()
         tunMutex.withLock {
             tunThreads[tunnelConf.id] = thread {
-                runBlocking {
-                    try {
+                try {
+                    runBlocking {
                         Timber.d("Starting tunnel ${tunnelConf.id}...")
                         startTunnelInner(tunnelConf)
                         Timber.d("Started complete for tunnel ${tunnelConf.name}...")
-                    } catch (e: InterruptedException) {
-                        Timber.w(
-                            "Tunnel start has been interrupted as ${tunnelConf.name} failed to start"
-                        )
                     }
+                } catch (e: InterruptedException) {
+                    Timber.w(
+                        "Tunnel start has been interrupted as ${tunnelConf.name} failed to start"
+                    )
                 }
             }
         }

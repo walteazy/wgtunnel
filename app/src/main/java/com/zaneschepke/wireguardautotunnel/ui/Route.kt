@@ -13,6 +13,8 @@ sealed class Route {
 
     @Serializable data object AutoTunnelAdvanced : Route()
 
+    @Serializable data object WifiDetectionMethod : Route()
+
     @Serializable data object LocationDisclosure : Route()
 
     @Serializable data object Appearance : Route()
@@ -43,4 +45,6 @@ sealed class Route {
     @Serializable data class TunnelAutoTunnel(val id: Int) : Route()
 
     @Serializable data object Logs : Route()
+
+    @Serializable data object Sort : Route()
 }
